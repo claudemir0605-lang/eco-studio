@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💰 Controle de Gastos</title>
+<style>
+  :root{
+    --azul:#1f4e78; --azul2:#2e6db4; --verde:#1f9d55; --vermelho:#d33a3a;
+    --bg:#f4f6f9; --card:#ffffff; --linha:#e5e9f0; --txt:#23304a; --suave:#6b7890;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  body{background:var(--bg);color:var(--txt);padding-bottom:40px}
+  header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;padding:18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  header h1{font-size:20px;display:flex;align-items:center;gap:8px}
+  .wrap{max-width:980px;margin:0 auto;padding:0 14px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
+  .card{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .card .lbl{font-size:12px;color:var(--suave);text-transform:uppercase;letter-spacing:.5px}
+  .card .val{font-size:22px;font-weight:700;margin-top:4px}
+  .v-entrada{color:var(--verde)} .v-saida{color:var(--vermelho)} .v-azul{color:var(--azul)}
+  .panel{background:var(--card);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:18px}
+  .panel h2{font-size:15px;margin-bottom:12px;color:var(--azul)}
+  form .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+  label{font-size:12px;color:var(--suave);display:block;margin-bottom:4px}
+  input,select{width:100%;padding:9px 10px;border:1px solid var(--linha);border-radius:9px;font-size:14px;background:#fff}
+  input:focus,select:focus{outline:none;border-color:var(--azul2)}
+  .seg{display:flex;gap:0;border:1px solid var(--linha);border-radius:9px;overflow:hidden}
+  .seg button{flex:1;border:none;padding:9px;background:#fff;cursor:pointer;font-weight:600;font-size:14px;color:var(--suave)}
+  .seg button.on-e{background:var(--verde);color:#fff}
+  .seg button.on-s{background:var(--vermelho);color:#fff}
+  .btn{background:var(--azul);color:#fff;border:none;padding:11px 18px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer}
+  .btn:hover{background:var(--azul2)}
+  .btn.ghost{background:#eef2f8;color:var(--azul)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .toolbar .sp{flex:1}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--linha)}
+  th{font-size:11px;text-transform:uppercase;color:var(--suave);letter-spacing:.4px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+  .tag.e{background:#e3f5ec;color:var(--verde)} .tag.s{background:#fbe7e7;color:var(--vermelho)}
+  .del{background:none;border:none;color:var(--vermelho);cursor:pointer;font-size:15px;opacity:.6}
+  .del:hover{opacity:1}
+  .vazio{text-align:center;color:var(--suave);padding:24px}
+  .bars{display:flex;flex-direction:column;gap:8px}
+  .bar-row{display:grid;grid-template-columns:90px 1fr 90px;align-items:center;gap:8px;font-size:13px}
+  .bar-track{background:#eef2f8;border-radius:6px;height:18px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:6px}
+  .mono{font-variant-numeric:tabular-nums}
+  @media(max-width:560px){.card .val{font-size:18px}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>💰 Controle de Gastos — Entradas e Saídas</h1></div></header>
+<div class="wrap">
+
+  <!-- Resumo do periodo -->
+  <div class="cards">
+    <div class="card"><div class="lbl">Entradas</div><div class="val v-entrada mono" id="c-ent">R$ 0,00</div></div>
+    <div class="card"><div class="lbl">Saídas</div><div class="val v-saida mono" id="c-sai">R$ 0,00</div></div>
+    <div class="card"><div class="lbl">Saldo</div><div class="val v-azul mono" id="c-sal">R$ 0,00</div></div>
+    <div class="card"><div class="lbl">Lançamentos</div><div class="val v-azul mono" id="c-qtd">0</div></div>
+  </div>
+
+  <!-- Novo lancamento -->
+  <div class="panel">
+    <h2>➕ Novo lançamento</h2>
+    <form id="form">
+      <div class="row">
+        <div>
+          <label>Tipo</label>
+          <div class="seg" id="seg">
+            <button type="button" data-tipo="saida" class="on-s">Saída</button>
+            <button type="button" data-tipo="entrada">Entrada</button>
+          </div>
+        </div>
+        <div><label>Data</label><input type="date" id="data" required></div>
+        <div><label>Categoria</label><select id="categoria"></select></div>
+        <div><label>Forma de pagamento</label><select id="pagamento"></select></div>
+        <div><label>Valor (R$)</label><input type="number" id="valor" step="0.01" min="0" placeholder="0,00" required></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div style="grid-column:1/-1"><label>Descrição</label><input type="text" id="descricao" placeholder="ex.: salário, mercado, conta de luz..."></div>
+      </div>
+      <div style="margin-top:12px"><button class="btn" type="submit">Adicionar lançamento</button></div>
+    </form>
+  </div>
+
+  <!-- Filtros + tabela -->
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0">📋 Lançamentos</h2>
+      <span class="sp"></span>
+      <select id="f-mes" style="width:auto"></select>
+      <select id="f-ano" style="width:auto"></select>
+      <button class="btn ghost" id="exp-csv">⬇ CSV</button>
+      <button class="btn ghost" id="exp-json">⬇ Backup</button>
+      <button class="btn ghost" id="imp-btn">⬆ Restaurar</button>
+      <input type="file" id="imp-file" accept=".json" style="display:none">
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Pagto</th><th class="num">Valor</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="vazio" id="vazio" style="display:none">Nenhum lançamento neste período. Adicione o primeiro acima 👆</div>
+  </div>
+
+  <!-- Resumo mensal por categoria -->
+  <div class="panel">
+    <h2>📊 Resumo do mês por categoria (saídas)</h2>
+    <div class="bars" id="bars"></div>
+    <div class="vazio" id="bars-vazio" style="display:none">Sem saídas registradas neste mês.</div>
+  </div>
+
+  <!-- Resumo anual -->
+  <div class="panel">
+    <h2>📅 Resumo anual — <span id="ano-lbl"></span></h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Saldo</th></tr></thead>
+        <tbody id="anual"></tbody>
+        <tfoot><tr style="font-weight:700"><td>TOTAL</td><td class="num v-entrada" id="a-ent"></td><td class="num v-saida" id="a-sai"></td><td class="num" id="a-sal"></td></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <p style="text-align:center;color:var(--suave);font-size:12px;margin-top:6px">
+    Os dados ficam salvos neste navegador. Use <b>Backup</b> de vez em quando para guardar uma cópia.
+  </p>
+</div>
+
+<script>
+const CHAVE = "controle_gastos_v1";
+const CATEGORIAS = {
+  saida:["Moradia","Contas (água/luz/gás/net)","Mercado","Refeições fora","Transporte","Saúde","Educação","Lazer","Vestuário","Assinaturas","Cuidados pessoais","Pets","Imprevistos","Outros"],
+  entrada:["Salário","Freelance/Extra","Vendas","Rendimentos","Reembolso","Presente","Outros"]
+};
+const PAGAMENTOS = ["Dinheiro","Pix","Débito","Crédito","Boleto","Transferência"];
+const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const CORES = ["#2e6db4","#1f9d55","#d3863a","#9b59b6","#d33a3a","#16a085","#e67e22","#34495e","#c0397b","#7f8c8d","#2980b9","#27ae60","#d35400","#8e44ad"];
+
+let dados = carregar();
+let tipoAtual = "saida";
+
+function carregar(){ try{ return JSON.parse(localStorage.getItem(CHAVE))||[] }catch(e){ return [] } }
+function salvar(){ localStorage.setItem(CHAVE, JSON.stringify(dados)) }
+function brl(v){ return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}) }
+function hoje(){ return new Date().toISOString().slice(0,10) }
+
+// ---- montar selects de categoria/pagamento e segmento tipo
+function preencherCategorias(){
+  const sel = document.getElementById("categoria");
+  sel.innerHTML = CATEGORIAS[tipoAtual].map(c=>`<option>${c}</option>`).join("");
+}
+document.getElementById("pagamento").innerHTML = PAGAMENTOS.map(p=>`<option>${p}</option>`).join("");
+document.getElementById("data").value = hoje();
+
+document.getElementById("seg").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  tipoAtual = b.dataset.tipo;
+  [...document.querySelectorAll("#seg button")].forEach(x=>x.className="");
+  b.className = tipoAtual==="entrada" ? "on-e" : "on-s";
+  preencherCategorias();
+});
+preencherCategorias();
+
+// ---- adicionar
+document.getElementById("form").addEventListener("submit", e=>{
+  e.preventDefault();
+  const valor = parseFloat(document.getElementById("valor").value);
+  if(!(valor>0)) return alert("Informe um valor válido.");
+  dados.push({
+    id: Date.now(),
+    tipo: tipoAtual,
+    data: document.getElementById("data").value,
+    categoria: document.getElementById("categoria").value,
+    pagamento: document.getElementById("pagamento").value,
+    descricao: document.getElementById("descricao").value.trim(),
+    valor: valor
+  });
+  salvar();
+  document.getElementById("valor").value="";
+  document.getElementById("descricao").value="";
+  render();
+});
+
+function excluir(id){
+  if(!confirm("Excluir este lançamento?")) return;
+  dados = dados.filter(d=>d.id!==id); salvar(); render();
+}
+
+// ---- filtros
+function anosDisponiveis(){
+  const s = new Set(dados.map(d=>d.data.slice(0,4)));
+  s.add(String(new Date().getFullYear()));
+  return [...s].sort().reverse();
+}
+function montarFiltros(){
+  const fMes = document.getElementById("f-mes"), fAno = document.getElementById("f-ano");
+  const mesSel = fMes.value || String(new Date().getMonth()+1).padStart(2,"0");
+  const anoSel = fAno.value || String(new Date().getFullYear());
+  fMes.innerHTML = `<option value="todos">Todos os meses</option>` + MESES.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join("");
+  fAno.innerHTML = anosDisponiveis().map(a=>`<option>${a}</option>`).join("");
+  fMes.value = mesSel; fAno.value = anoSel;
+}
+
+// ---- render principal
+function render(){
+  montarFiltros();
+  const mes = document.getElementById("f-mes").value;
+  const ano = document.getElementById("f-ano").value;
+  const filtrados = dados.filter(d=>{
+    const [a,m] = d.data.split("-");
+    return a===ano && (mes==="todos" || m===mes);
+  }).sort((x,y)=> y.data.localeCompare(x.data) || y.id-x.id);
+
+  // cards
+  let ent=0, sai=0;
+  filtrados.forEach(d=> d.tipo==="entrada" ? ent+=d.valor : sai+=d.valor);
+  document.getElementById("c-ent").textContent = brl(ent);
+  document.getElementById("c-sai").textContent = brl(sai);
+  const saldo = ent-sai;
+  const cs = document.getElementById("c-sal");
+  cs.textContent = brl(saldo); cs.className = "val mono " + (saldo<0?"v-saida":"v-azul");
+  document.getElementById("c-qtd").textContent = filtrados.length;
+
+  // tabela
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = filtrados.map(d=>{
+    const [a,m,dia] = d.data.split("-");
+    const sinal = d.tipo==="entrada" ? "+" : "−";
+    const cor = d.tipo==="entrada" ? "v-entrada" : "v-saida";
+    return `<tr>
+      <td class="mono">${dia}/${m}</td>
+      <td><span class="tag ${d.tipo==='entrada'?'e':'s'}">${d.tipo==='entrada'?'Entrada':'Saída'}</span></td>
+      <td>${d.categoria}</td>
+      <td>${d.descricao||"—"}</td>
+      <td>${d.pagamento}</td>
+      <td class="num ${cor}">${sinal} ${brl(d.valor)}</td>
+      <td><button class="del" onclick="excluir(${d.id})" title="Excluir">✕</button></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("vazio").style.display = filtrados.length? "none":"block";
+
+  renderBarras(filtrados);
+  renderAnual(ano);
+}
+
+// ---- barras por categoria (saidas do filtro atual)
+function renderBarras(filtrados){
+  const cont = {};
+  filtrados.filter(d=>d.tipo==="saida").forEach(d=> cont[d.categoria]=(cont[d.categoria]||0)+d.valor);
+  const itens = Object.entries(cont).sort((a,b)=>b[1]-a[1]);
+  const max = itens.length? itens[0][1]:0;
+  const box = document.getElementById("bars");
+  box.innerHTML = itens.map(([cat,v],i)=>`
+    <div class="bar-row">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cat}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${max?(v/max*100):0}%;background:${CORES[i%CORES.length]}"></div></div>
+      <span class="num mono">${brl(v)}</span>
+    </div>`).join("");
+  document.getElementById("bars-vazio").style.display = itens.length?"none":"block";
+}
+
+// ---- resumo anual
+function renderAnual(ano){
+  document.getElementById("ano-lbl").textContent = ano;
+  const ent=Array(12).fill(0), sai=Array(12).fill(0);
+  dados.filter(d=>d.data.slice(0,4)===ano).forEach(d=>{
+    const mi = parseInt(d.data.slice(5,7),10)-1;
+    if(d.tipo==="entrada") ent[mi]+=d.valor; else sai[mi]+=d.valor;
+  });
+  let te=0,ts=0;
+  document.getElementById("anual").innerHTML = MESES.map((m,i)=>{
+    te+=ent[i]; ts+=sai[i];
+    const s = ent[i]-sai[i];
+    if(ent[i]===0 && sai[i]===0) return `<tr style="color:var(--suave)"><td>${m}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>`;
+    return `<tr><td>${m}</td><td class="num v-entrada">${brl(ent[i])}</td><td class="num v-saida">${brl(sai[i])}</td><td class="num ${s<0?'v-saida':''}">${brl(s)}</td></tr>`;
+  }).join("");
+  document.getElementById("a-ent").textContent = brl(te);
+  document.getElementById("a-sai").textContent = brl(ts);
+  const sl = document.getElementById("a-sal");
+  sl.textContent = brl(te-ts); sl.className = "num " + ((te-ts)<0?"v-saida":"v-azul");
+}
+
+// ---- filtros change
+document.getElementById("f-mes").addEventListener("change", render);
+document.getElementById("f-ano").addEventListener("change", render);
+
+// ---- exportar CSV
+document.getElementById("exp-csv").addEventListener("click", ()=>{
+  if(!dados.length) return alert("Nada para exportar.");
+  const linhas = [["Data","Tipo","Categoria","Descrição","Pagamento","Valor"]];
+  dados.slice().sort((a,b)=>a.data.localeCompare(b.data)).forEach(d=>
+    linhas.push([d.data, d.tipo, d.categoria, d.descricao, d.pagamento, d.valor.toFixed(2).replace(".",",")]));
+  const csv = "﻿"+linhas.map(l=>l.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
+  baixar(new Blob([csv],{type:"text/csv"}), "controle_de_gastos.csv");
+});
+// ---- backup JSON
+document.getElementById("exp-json").addEventListener("click", ()=>{
+  baixar(new Blob([JSON.stringify(dados,null,2)],{type:"application/json"}), "backup_gastos.json");
+});
+// ---- restaurar
+document.getElementById("imp-btn").addEventListener("click", ()=>document.getElementById("imp-file").click());
+document.getElementById("imp-file").addEventListener("change", e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const novos = JSON.parse(r.result);
+      if(!Array.isArray(novos)) throw 0;
+      if(confirm(`Restaurar ${novos.length} lançamentos? Isso substitui os dados atuais.`)){
+        dados = novos; salvar(); render();
+      }
+    }catch(_){ alert("Arquivo inválido."); }
+    e.target.value="";
+  };
+  r.readAsText(f);
+});
+function baixar(blob, nome){
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nome; a.click(); URL.revokeObjectURL(a.href);
+}
+
+render();
+</script>
+</body>
+</html>
