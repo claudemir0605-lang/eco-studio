@@ -14,6 +14,12 @@
   header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;padding:18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
   header h1{font-size:20px;display:flex;align-items:center;gap:8px}
   .wrap{max-width:980px;margin:0 auto;padding:0 14px}
+  .espacobar{background:#eaf1fb;border-bottom:1px solid var(--linha);font-size:13px;color:var(--azul)}
+  .espacobar .wrap{padding:8px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .espacobar b{font-weight:700}
+  .link{background:none;border:none;color:var(--azul2);cursor:pointer;text-decoration:underline;font-size:13px;padding:0}
+  .cloud-dot{width:9px;height:9px;border-radius:50%;background:#bbb;display:inline-block}
+  .cloud-dot.on{background:var(--verde)} .cloud-dot.off{background:var(--vermelho)}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
   .card{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
   .card .lbl{font-size:12px;color:var(--suave);text-transform:uppercase;letter-spacing:.5px}
@@ -48,11 +54,43 @@
   .bar-track{background:#eef2f8;border-radius:6px;height:18px;overflow:hidden}
   .bar-fill{height:100%;border-radius:6px}
   .mono{font-variant-numeric:tabular-nums}
+  /* login */
+  #login{position:fixed;inset:0;background:linear-gradient(135deg,var(--azul),var(--azul2));display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  #login .box{background:#fff;border-radius:18px;padding:26px 22px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  #login h2{color:var(--azul);font-size:19px;margin-bottom:6px}
+  #login p{color:var(--suave);font-size:13px;margin-bottom:16px;line-height:1.5}
+  #login input{margin-bottom:12px;text-align:center;font-size:16px;letter-spacing:1px}
+  #login .btn{width:100%}
   @media(max-width:560px){.card .val{font-size:18px}}
 </style>
+<!-- Firebase (modo nuvem). Sem configuração preenchida, o app usa o navegador. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
 <body>
+
+<!-- ===== TELA DE LOGIN (só aparece no modo nuvem) ===== -->
+<div id="login">
+  <div class="box">
+    <h2>💰 Controle de Gastos</h2>
+    <p>Digite o <b>código do espaço compartilhado</b>. As duas pessoas devem usar
+       <b>exatamente o mesmo código</b> para ver e lançar os mesmos dados.</p>
+    <input type="text" id="cod-espaco" placeholder="ex.: casa-silva-2026" autocomplete="off">
+    <button class="btn" id="btn-entrar">Entrar</button>
+  </div>
+</div>
+
 <header><div class="wrap"><h1>💰 Controle de Gastos — Entradas e Saídas</h1></div></header>
+
+<div class="espacobar" id="espacobar" style="display:none"><div class="wrap">
+  <span class="cloud-dot" id="cloud-dot"></span>
+  <span id="cloud-txt">Local (neste navegador)</span>
+  <span class="sp" style="flex:1"></span>
+  <span id="espaco-info" style="display:none">Espaço: <b id="espaco-lbl"></b></span>
+  <button class="link" id="btn-trocar" style="display:none">trocar</button>
+</div></div>
+
 <div class="wrap">
 
   <!-- Resumo do periodo -->
@@ -127,13 +165,30 @@
     </div>
   </div>
 
-  <p style="text-align:center;color:var(--suave);font-size:12px;margin-top:6px">
+  <p style="text-align:center;color:var(--suave);font-size:12px;margin-top:6px" id="rodape">
     Os dados ficam salvos neste navegador. Use <b>Backup</b> de vez em quando para guardar uma cópia.
   </p>
 </div>
 
 <script>
+/* ====================================================================
+   CONFIGURAÇÃO DO FIREBASE (modo nuvem — 2 pessoas, dados sincronizados)
+   Cole aqui os dados do seu projeto Firebase. Enquanto estiver "COLE_AQUI",
+   o app continua funcionando em modo local (só neste navegador).
+   ==================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey:            "COLE_AQUI",
+  authDomain:        "COLE_AQUI.firebaseapp.com",
+  projectId:         "COLE_AQUI",
+  storageBucket:     "COLE_AQUI.appspot.com",
+  messagingSenderId: "COLE_AQUI",
+  appId:             "COLE_AQUI"
+};
+const NUVEM = FIREBASE_CONFIG.apiKey && !/COLE_AQUI/.test(FIREBASE_CONFIG.apiKey);
+
+/* -------------------------------------------------------------------- */
 const CHAVE = "controle_gastos_v1";
+const CHAVE_ESPACO = "controle_gastos_espaco";
 const CATEGORIAS = {
   saida:["Moradia","Contas (água/luz/gás/net)","Mercado","Refeições fora","Transporte","Saúde","Educação","Lazer","Vestuário","Assinaturas","Cuidados pessoais","Pets","Imprevistos","Outros"],
   entrada:["Salário","Freelance/Extra","Vendas","Rendimentos","Reembolso","Presente","Outros"]
@@ -142,18 +197,97 @@ const PAGAMENTOS = ["Dinheiro","Pix","Débito","Crédito","Boleto","Transferênc
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const CORES = ["#2e6db4","#1f9d55","#d3863a","#9b59b6","#d33a3a","#16a085","#e67e22","#34495e","#c0397b","#7f8c8d","#2980b9","#27ae60","#d35400","#8e44ad"];
 
-let dados = carregar();
+let dados = [];
 let tipoAtual = "saida";
+let db=null, colRef=null, unsub=null;
 
-function carregar(){ try{ return JSON.parse(localStorage.getItem(CHAVE))||[] }catch(e){ return [] } }
-function salvar(){ localStorage.setItem(CHAVE, JSON.stringify(dados)) }
 function brl(v){ return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}) }
 function hoje(){ return new Date().toISOString().slice(0,10) }
+function novoId(){ return Date.now()*1000 + Math.floor(Math.random()*1000) }
 
-// ---- montar selects de categoria/pagamento e segmento tipo
+/* ============ CAMADA DE DADOS (nuvem ou local) ============ */
+function carregarLocal(){ try{ return JSON.parse(localStorage.getItem(CHAVE))||[] }catch(e){ return [] } }
+function salvarLocal(){ localStorage.setItem(CHAVE, JSON.stringify(dados)) }
+
+async function persistAdd(obj){
+  if(NUVEM && colRef){ await colRef.doc(String(obj.id)).set(obj); }   // snapshot atualiza a tela
+  else { dados.push(obj); salvarLocal(); render(); }
+}
+async function persistDelete(id){
+  if(NUVEM && colRef){ await colRef.doc(String(id)).delete(); }
+  else { dados = dados.filter(d=>d.id!==id); salvarLocal(); render(); }
+}
+async function persistReplaceAll(novos){
+  if(NUVEM && colRef){
+    const atuais = await colRef.get();
+    const lote = db.batch();
+    atuais.forEach(d=>lote.delete(d.ref));
+    novos.forEach(o=>lote.set(colRef.doc(String(o.id)), o));
+    await lote.commit();
+  } else { dados = novos; salvarLocal(); render(); }
+}
+
+/* ============ INICIALIZAÇÃO ============ */
+function iniciar(){
+  if(NUVEM){
+    document.getElementById("espacobar").style.display = "block";
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
+    firebase.auth().signInAnonymously().catch(err=>{
+      alert("Não foi possível conectar à nuvem: "+err.message+
+            "\\nVerifique se ativou o login Anônimo no Firebase.");
+    });
+    firebase.auth().onAuthStateChanged(u=>{
+      if(!u) return;
+      const cod = localStorage.getItem(CHAVE_ESPACO);
+      if(cod) entrarEspaco(cod); else mostrarLogin();
+    });
+  } else {
+    dados = carregarLocal();
+    render();
+  }
+}
+
+function mostrarLogin(){ document.getElementById("login").style.display="flex"; document.getElementById("cod-espaco").focus(); }
+function esconderLogin(){ document.getElementById("login").style.display="none"; }
+
+function entrarEspaco(cod){
+  cod = cod.trim().toLowerCase().replace(/\s+/g,"-");
+  if(!cod) return;
+  localStorage.setItem(CHAVE_ESPACO, cod);
+  document.getElementById("espaco-lbl").textContent = cod;
+  document.getElementById("espaco-info").style.display = "inline";
+  document.getElementById("btn-trocar").style.display = "inline";
+  document.getElementById("cloud-dot").className = "cloud-dot on";
+  document.getElementById("cloud-txt").textContent = "Nuvem — sincronizado";
+  document.getElementById("rodape").innerHTML =
+    "✅ Dados salvos na nuvem (Firebase) e sincronizados entre os aparelhos que usam este mesmo código.";
+  if(unsub) unsub();
+  colRef = db.collection("espacos").doc(cod).collection("lancamentos");
+  unsub = colRef.onSnapshot(snap=>{
+    dados = snap.docs.map(d=>d.data());
+    esconderLogin();
+    render();
+  }, err=>{
+    document.getElementById("cloud-dot").className="cloud-dot off";
+    document.getElementById("cloud-txt").textContent="Erro de conexão";
+    alert("Erro ao ler os dados da nuvem: "+err.message);
+  });
+}
+
+document.getElementById("btn-entrar").addEventListener("click", ()=>entrarEspaco(document.getElementById("cod-espaco").value));
+document.getElementById("cod-espaco").addEventListener("keydown", e=>{ if(e.key==="Enter") entrarEspaco(e.target.value); });
+document.getElementById("btn-trocar").addEventListener("click", ()=>{
+  if(unsub) unsub(); colRef=null; dados=[];
+  localStorage.removeItem(CHAVE_ESPACO);
+  document.getElementById("cod-espaco").value="";
+  mostrarLogin();
+});
+
+/* ============ FORMULÁRIO ============ */
 function preencherCategorias(){
-  const sel = document.getElementById("categoria");
-  sel.innerHTML = CATEGORIAS[tipoAtual].map(c=>`<option>${c}</option>`).join("");
+  document.getElementById("categoria").innerHTML = CATEGORIAS[tipoAtual].map(c=>`<option>${c}</option>`).join("");
 }
 document.getElementById("pagamento").innerHTML = PAGAMENTOS.map(p=>`<option>${p}</option>`).join("");
 document.getElementById("data").value = hoje();
@@ -167,32 +301,30 @@ document.getElementById("seg").addEventListener("click", e=>{
 });
 preencherCategorias();
 
-// ---- adicionar
 document.getElementById("form").addEventListener("submit", e=>{
   e.preventDefault();
   const valor = parseFloat(document.getElementById("valor").value);
   if(!(valor>0)) return alert("Informe um valor válido.");
-  dados.push({
-    id: Date.now(),
+  const obj = {
+    id: novoId(),
     tipo: tipoAtual,
     data: document.getElementById("data").value,
     categoria: document.getElementById("categoria").value,
     pagamento: document.getElementById("pagamento").value,
     descricao: document.getElementById("descricao").value.trim(),
     valor: valor
-  });
-  salvar();
+  };
+  persistAdd(obj);
   document.getElementById("valor").value="";
   document.getElementById("descricao").value="";
-  render();
 });
 
 function excluir(id){
   if(!confirm("Excluir este lançamento?")) return;
-  dados = dados.filter(d=>d.id!==id); salvar(); render();
+  persistDelete(id);
 }
 
-// ---- filtros
+/* ============ FILTROS ============ */
 function anosDisponiveis(){
   const s = new Set(dados.map(d=>d.data.slice(0,4)));
   s.add(String(new Date().getFullYear()));
@@ -207,7 +339,7 @@ function montarFiltros(){
   fMes.value = mesSel; fAno.value = anoSel;
 }
 
-// ---- render principal
+/* ============ RENDER ============ */
 function render(){
   montarFiltros();
   const mes = document.getElementById("f-mes").value;
@@ -217,7 +349,6 @@ function render(){
     return a===ano && (mes==="todos" || m===mes);
   }).sort((x,y)=> y.data.localeCompare(x.data) || y.id-x.id);
 
-  // cards
   let ent=0, sai=0;
   filtrados.forEach(d=> d.tipo==="entrada" ? ent+=d.valor : sai+=d.valor);
   document.getElementById("c-ent").textContent = brl(ent);
@@ -227,7 +358,6 @@ function render(){
   cs.textContent = brl(saldo); cs.className = "val mono " + (saldo<0?"v-saida":"v-azul");
   document.getElementById("c-qtd").textContent = filtrados.length;
 
-  // tabela
   const tb = document.getElementById("tbody");
   tb.innerHTML = filtrados.map(d=>{
     const [a,m,dia] = d.data.split("-");
@@ -249,14 +379,12 @@ function render(){
   renderAnual(ano);
 }
 
-// ---- barras por categoria (saidas do filtro atual)
 function renderBarras(filtrados){
   const cont = {};
   filtrados.filter(d=>d.tipo==="saida").forEach(d=> cont[d.categoria]=(cont[d.categoria]||0)+d.valor);
   const itens = Object.entries(cont).sort((a,b)=>b[1]-a[1]);
   const max = itens.length? itens[0][1]:0;
-  const box = document.getElementById("bars");
-  box.innerHTML = itens.map(([cat,v],i)=>`
+  document.getElementById("bars").innerHTML = itens.map(([cat,v],i)=>`
     <div class="bar-row">
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cat}</span>
       <div class="bar-track"><div class="bar-fill" style="width:${max?(v/max*100):0}%;background:${CORES[i%CORES.length]}"></div></div>
@@ -265,7 +393,6 @@ function renderBarras(filtrados){
   document.getElementById("bars-vazio").style.display = itens.length?"none":"block";
 }
 
-// ---- resumo anual
 function renderAnual(ano){
   document.getElementById("ano-lbl").textContent = ano;
   const ent=Array(12).fill(0), sai=Array(12).fill(0);
@@ -286,11 +413,10 @@ function renderAnual(ano){
   sl.textContent = brl(te-ts); sl.className = "num " + ((te-ts)<0?"v-saida":"v-azul");
 }
 
-// ---- filtros change
 document.getElementById("f-mes").addEventListener("change", render);
 document.getElementById("f-ano").addEventListener("change", render);
 
-// ---- exportar CSV
+/* ============ EXPORTAR / BACKUP / RESTAURAR ============ */
 document.getElementById("exp-csv").addEventListener("click", ()=>{
   if(!dados.length) return alert("Nada para exportar.");
   const linhas = [["Data","Tipo","Categoria","Descrição","Pagamento","Valor"]];
@@ -299,11 +425,9 @@ document.getElementById("exp-csv").addEventListener("click", ()=>{
   const csv = "﻿"+linhas.map(l=>l.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
   baixar(new Blob([csv],{type:"text/csv"}), "controle_de_gastos.csv");
 });
-// ---- backup JSON
 document.getElementById("exp-json").addEventListener("click", ()=>{
   baixar(new Blob([JSON.stringify(dados,null,2)],{type:"application/json"}), "backup_gastos.json");
 });
-// ---- restaurar
 document.getElementById("imp-btn").addEventListener("click", ()=>document.getElementById("imp-file").click());
 document.getElementById("imp-file").addEventListener("change", e=>{
   const f = e.target.files[0]; if(!f) return;
@@ -313,7 +437,7 @@ document.getElementById("imp-file").addEventListener("change", e=>{
       const novos = JSON.parse(r.result);
       if(!Array.isArray(novos)) throw 0;
       if(confirm(`Restaurar ${novos.length} lançamentos? Isso substitui os dados atuais.`)){
-        dados = novos; salvar(); render();
+        persistReplaceAll(novos);
       }
     }catch(_){ alert("Arquivo inválido."); }
     e.target.value="";
@@ -324,7 +448,7 @@ function baixar(blob, nome){
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nome; a.click(); URL.revokeObjectURL(a.href);
 }
 
-render();
+iniciar();
 </script>
 </body>
 </html>
