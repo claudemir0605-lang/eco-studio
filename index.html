@@ -177,12 +177,12 @@
    o app continua funcionando em modo local (só neste navegador).
    ==================================================================== */
 const FIREBASE_CONFIG = {
-  apiKey:            "COLE_AQUI",
-  authDomain:        "COLE_AQUI.firebaseapp.com",
-  projectId:         "COLE_AQUI",
-  storageBucket:     "COLE_AQUI.appspot.com",
-  messagingSenderId: "COLE_AQUI",
-  appId:             "COLE_AQUI"
+  apiKey:            "AIzaSyAClJaDdl4mgyv5e3C8OxXaST88nqJ7hEw",
+  authDomain:        "controle-de-gastos-6446a.firebaseapp.com",
+  projectId:         "controle-de-gastos-6446a",
+  storageBucket:     "controle-de-gastos-6446a.firebasestorage.app",
+  messagingSenderId: "487875407696",
+  appId:             "1:487875407696:web:1477517f3717b0ce4ac655"
 };
 const NUVEM = FIREBASE_CONFIG.apiKey && !/COLE_AQUI/.test(FIREBASE_CONFIG.apiKey);
 
@@ -229,7 +229,7 @@ async function persistReplaceAll(novos){
 
 /* ============ INICIALIZAÇÃO ============ */
 function iniciar(){
-  if(NUVEM){
+  if(NUVEM && typeof firebase !== "undefined" && firebase.initializeApp){
     document.getElementById("espacobar").style.display = "block";
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
@@ -244,6 +244,11 @@ function iniciar(){
       if(cod) entrarEspaco(cod); else mostrarLogin();
     });
   } else {
+    if(NUVEM){  // configurado para nuvem, mas os scripts do Firebase não carregaram
+      document.getElementById("espacobar").style.display = "block";
+      document.getElementById("cloud-dot").className = "cloud-dot off";
+      document.getElementById("cloud-txt").textContent = "Sem conexão com a nuvem — usando este aparelho";
+    }
     dados = carregarLocal();
     render();
   }
